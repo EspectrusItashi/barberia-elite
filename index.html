@@ -148,9 +148,15 @@
     function establecerFechaMinima() {
         const hoy = new Date();
         const año = hoy.getFullYear();
-        const mes = String(hoy.getMonth() + 1).padStart(2, '0');
-        const dia = String(hoy.getDate()).padStart(2, '0');
-        document.getElementById('fechaSelect').min = `${año}-${mes}-${dia}`;
+        const mes = String(hoy.getMonth() + 1).padStart(2, '0'); // Garantiza 2 dígitos (ej. "09")
+        const dia = String(hoy.getDate()).padStart(2, '0');      // Garantiza 2 dígitos (ej. "08")
+        
+        const fechaFormateada = `${año}-${mes}-${dia}`;
+        
+        const inputFecha = document.getElementById('fechaSelect');
+        if (inputFecha) {
+            inputFecha.min = fechaFormateada;
+        }
     }
 
     async function cargarServicios() {
@@ -189,6 +195,13 @@
         const fechaInput = document.getElementById('fechaSelect').value;
         const contenedor = document.getElementById('contenedorHorarios');
         if (!fechaInput) return;
+
+        const hoyComparar = new Date();
+        hoyComparar.setHours(0, 0, 0, 0);
+        if (new Date(fechaInput + 'T00:00:00') < hoyComparar) {
+            contenedor.innerHTML = `<span style="color:var(--danger); font-weight:bold;">⛔ No puedes seleccionar fechas pasadas.</span>`;
+            return;
+        }
 
         contenedor.innerHTML = 'Consultando disponibilidad...';
         horaSeleccionada = null;

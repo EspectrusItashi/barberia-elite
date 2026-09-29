@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Administrador - Barbería Elite</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --accent: #d97706;
+            --text-light: #f8fafc;
+            --text-muted: #94a3b8;
+            --danger: #ef4444;
+            --success: #10b981;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-light);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .app-container { width: 100%; max-width: 900px; }
+        .card { background: var(--card-bg); padding: 25px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); margin-bottom: 25px; }
+        input { width: 100%; padding: 12px; background: #0f172a; border: 1px solid #334155; color: var(--text-light); border-radius: 6px; box-sizing: border-box; margin-bottom: 15px; }
+        .btn { padding: 12px 20px; background: var(--accent); border: none; color: white; font-weight: bold; border-radius: 6px; cursor: pointer; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
+        th { color: var(--text-muted); }
+        .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
+        .status-confirmed { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .status-canceled { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    
+    <!-- PANTALLA DE LOGIN -->
+    <div id="login-section" class="card" style="max-width: 400px; margin: 50px auto; text-align: center;">
+        <h2><i class="fa-solid fa-lock"></i> Acceso Administrador</h2>
+        <p style="color: var(--text-muted)">Ingresa tu contraseña para acceder</p>
+        <input type="password" id="adminPass" placeholder="Contraseña de Administrador">
+        <button class="btn" style="width: 100%;" onclick="validarLogin()">INGRESAR</button>
+    </div>
+
+    <!-- PANEL ADMINISTRADOR (OCULTO HASTA INICIAR SESIÓN) -->
+    <div id="admin-panel" class="card" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2>Panel de Control - Barbería</h2>
+            <button class="btn" style="background: var(--danger);" onclick="cerrarSesion()">Cerrar Sesión</button>
+        </div>
+
+        <div style="background: #0f172a; padding: 15px; border-radius: 8px; margin-bottom: 25px;">
+            <label style="color: var(--text-muted)">⚡ Bloquear / Desbloquear Día (1 Clic):</label>
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <input type="date" id="adminFechaBloqueo" style="margin: 0;">
+                <button class="btn" style="background: var(--danger); white-space: nowrap;" onclick="toggleBloquearDia()">Bloquear/Desbloquear</button>
+            </div>
+        </div>
+
+        <h3>📅 Lista de Citas Agendadas</h3>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Contacto</th>
+                        <th>Fecha y Hora</th>
+                        <th>Estado</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaCitasAdmin">
+                    <tr><td colspan="5">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const SUPABASE_URL = 'https://chdiinrzmrpphwafwgbk.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoZGlpbnJ6bXJwcGh3YWZ3Z2JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2MTQ1NDgsImV4cCI6MjEwNjE5MDU0OH0.88e2UxvOnA5H4CDyx4pN3wjOF_MXKWkO0AXlPREfVSE'; // Pega aquí tu clave anon public
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const CLAVE_ADMIN = 'du78r4dt'; // 👈 CAMBIA TU CONTRASEÑA AQUÍ
+
+    function validarLogin() {
+        const pass = document.getElementById('adminPass').value;
+        if (pass === CLAVE_ADMIN) {
+            document.getElementById('login-section').style.display = 'none';
+            document.getElementById('admin-panel').style.display = 'block';
+            cargarCitasAdmin();
+        } else {
+            alert('Contraseña incorrecta');
+        }
+    }
+
+    function cerrarSesion() {
+        location.reload();
+    }
+
+    async function cargarCitasAdmin() {
+        const tbody = document.getElementById('tablaCitasAdmin');
+        tbody.innerHTML = 'Cargando citas...';
+
+        const { data: citas } = await _supabase.from('citas').select('*').order('fecha', { ascending: true });
+
+        if (!citas || citas.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5">No hay citas registradas.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = '';
+        citas.forEach(c => {
+            const isConfirmed = c.estado === 'CONFIRMADA';
+            tbody.innerHTML += `
+                <tr>
+                    <td><strong>${c.cliente_nombre}</strong></td>
+                    <td>${c.cliente_telefono}<br><small>${c.cliente_email}</small></td>
+                    <td>${c.fecha} - ${c.hora.slice(0, 5)} hs</td>
+                    <td><span class="status-badge ${isConfirmed ? 'status-confirmed' : 'status-canceled'}">${c.estado}</span></td>
+                    <td>${isConfirmed ? `<button class="btn" style="background:var(--danger); padding:4px 8px; font-size:0.8rem;" onclick="cancelarCita(${c.id})">Cancelar</button>` : '-'}</td>
+                </tr>
+            `;
+        });
+    }
+
+    async function cancelarCita(id) {
+        if (!confirm('¿Seguro que deseas cancelar esta cita?')) return;
+        await _supabase.from('citas').update({ estado: 'CANCELADA_ADMIN' }).eq('id', id);
+        cargarCitasAdmin();
+    }
+
+    async function toggleBloquearDia() {
+        const fecha = document.getElementById('adminFechaBloqueo').value;
+        if (!fecha) { alert('Selecciona una fecha.'); return; }
+
+        const { data: existe } = await _supabase.from('bloqueos_agenda').select('*').eq('fecha', fecha);
+
+        if (existe && existe.length > 0) {
+            await _supabase.from('bloqueos_agenda').delete().eq('fecha', fecha);
+            alert('✅ Día desbloqueado');
+        } else {
+            await _supabase.from('bloqueos_agenda').insert([{ fecha }]);
+            alert('🚫 Día bloqueado');
+        }
+    }
+</script>
+</body>
+</html>
